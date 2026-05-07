@@ -15,11 +15,13 @@ interface TrackProps {
   color: string;
   height?: number;
   clips: Clip[];
+  selectedClipId: string | null;
+  onClipSelect: (id: string) => void;
   onClipMove: (clipId: string, newStart: number) => void;
-  onClipResize: (clipId: string, newDuration: number) => void;
+  onContextMenu: (e: React.MouseEvent, id: string) => void;
 }
 
-const TimelineTrack: React.FC<TrackProps> = ({ label, icon, color, height = 36, clips, onClipMove, onClipResize }) => {
+const TimelineTrack: React.FC<TrackProps> = ({ label, icon, color, height = 36, clips, selectedClipId, onClipSelect, onClipMove, onContextMenu }) => {
   const trackRef = useRef<HTMLDivElement>(null);
 
   const handleDragStart = (e: React.DragEvent, clipId: string) => {
@@ -56,14 +58,16 @@ const TimelineTrack: React.FC<TrackProps> = ({ label, icon, color, height = 36, 
               key={clip.id}
               draggable
               onDragStart={(e) => handleDragStart(e, clip.id)}
-              className="absolute h-full rounded-lg border border-white/10 opacity-70 cursor-grab active:cursor-grabbing hover:opacity-100 transition-standard flex items-center px-3 shadow-lg"
+              onClick={(e) => { e.stopPropagation(); onClipSelect(clip.id); }}
+              onContextMenu={(e) => onContextMenu(e, clip.id)}
+              className={`absolute h-full rounded-lg border opacity-80 cursor-grab active:cursor-grabbing hover:opacity-100 transition-standard flex items-center px-3 shadow-lg ${selectedClipId === clip.id ? "border-[#7C5CFC] ring-2 ring-[#7C5CFC]/20 opacity-100 z-10" : "border-white/10"}`}
               style={{
                 backgroundColor: color,
                 left: `${clip.start}%`,
                 width: `${clip.duration}%`
               }}
             >
-               <span className="text-[9px] font-black text-white truncate drop-shadow-md">{clip.label}</span>
+               <span className="text-[9px] font-black text-white truncate drop-shadow-md uppercase tracking-tight">{clip.label}</span>
 
                {/* Resizer handles */}
                <div className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-white/20" />
@@ -76,6 +80,8 @@ const TimelineTrack: React.FC<TrackProps> = ({ label, icon, color, height = 36, 
 };
 
 const Timeline = ({ playheadPos, setPlayheadPos }: { playheadPos: number, setPlayheadPos: (pos: number) => void }) => {
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string } | null>(null);
   const [tracks, setTracks] = useState({
     video: [{ id: 'v1', start: 5, duration: 40, label: 'Main Scene' }, { id: 'v2', start: 50, duration: 30, label: 'B-Roll' }],
     audio: [{ id: 'a1', start: 5, duration: 75, label: 'Interview Audio' }],
@@ -92,58 +98,117 @@ const Timeline = ({ playheadPos, setPlayheadPos }: { playheadPos: number, setPla
      }));
   };
 
+  const handleContextMenu = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, id });
+  };
+
+  const handleDelete = (id: string) => {
+    const newTracks = { ...tracks };
+    Object.keys(newTracks).forEach(key => {
+      const k = key as keyof typeof tracks;
+      newTracks[k] = newTracks[k].filter(c => c.id !== id);
+    });
+    setTracks(newTracks);
+    setContextMenu(null);
+  };
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleTimelineClick = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left - 112; // Adjusted for track label width
-    if (x < 0) return;
+    if (x < 0) {
+      setSelectedClipId(null);
+      setContextMenu(null);
+      return;
+    }
     const percentage = (x / (rect.width - 112)) * 100;
     setPlayheadPos(Math.max(0, Math.min(100, percentage)));
+    setSelectedClipId(null);
+    setContextMenu(null);
   };
 
   return (
     <div ref={containerRef} className="flex-1 flex flex-col relative" onClick={handleTimelineClick}>
+       {/* Context Menu */}
+       {contextMenu && (
+         <div
+           className="fixed z-[1000] bg-[#1E1E24] border border-white/10 p-2 rounded-xl shadow-2xl space-y-1 min-w-[140px] animate-in zoom-in duration-200"
+           style={{ left: contextMenu.x, top: contextMenu.y }}
+           onClick={e => e.stopPropagation()}
+         >
+            <button className="w-full text-left px-3 py-2 text-[10px] font-bold text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg flex items-center justify-between transition-standard">
+               <span>SPLIT</span>
+               <i className="ti ti-cut"></i>
+            </button>
+            <button className="w-full text-left px-3 py-2 text-[10px] font-bold text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg flex items-center justify-between transition-standard">
+               <span>DUPLICATE</span>
+               <i className="ti ti-copy"></i>
+            </button>
+            <div className="h-px bg-white/5 mx-2 my-1" />
+            <button
+              onClick={() => handleDelete(contextMenu.id)}
+              className="w-full text-left px-3 py-2 text-[10px] font-bold text-red-500 hover:bg-red-500/10 rounded-lg flex items-center justify-between transition-standard"
+            >
+               <span>DELETE</span>
+               <i className="ti ti-trash"></i>
+            </button>
+         </div>
+       )}
+
        {/* Ruler */}
-       <div className="h-6 flex border-b border-white/5 mb-4 ml-28">
+       <div className="h-6 flex border-b border-white/5 mb-4 ml-28 shrink-0">
           {[...Array(11)].map((_, i) => (
             <div key={i} className="flex-1 border-l border-white/10 relative">
-               <span className="absolute top-0 left-1 text-[8px] font-mono text-zinc-600">{i * 10}s</span>
+               <span className="absolute top-0 left-1 text-[8px] font-mono text-zinc-700">{i * 10}s</span>
             </div>
           ))}
        </div>
 
-       <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
+       <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2 min-h-0">
           <TimelineTrack
             label="Captions" icon="ti-subtitles" color="#00D4FF"
-            clips={tracks.captions} onClipMove={(id, pos) => handleClipMove('captions', id, pos)}
-            onClipResize={() => {}}
+            clips={tracks.captions} selectedClipId={selectedClipId}
+            onClipSelect={setSelectedClipId}
+            onClipMove={(id, pos) => handleClipMove('captions', id, pos)}
+            onContextMenu={handleContextMenu}
           />
           <TimelineTrack
             label="Text" icon="ti-text-size" color="#7C5CFC"
-            clips={tracks.overlays} onClipMove={(id, pos) => handleClipMove('overlays', id, pos)}
-            onClipResize={() => {}}
+            clips={tracks.overlays} selectedClipId={selectedClipId}
+            onClipSelect={setSelectedClipId}
+            onClipMove={(id, pos) => handleClipMove('overlays', id, pos)}
+            onContextMenu={handleContextMenu}
           />
           <TimelineTrack
             label="Video" icon="ti-video" color="#3B82F6" height={64}
-            clips={tracks.video} onClipMove={(id, pos) => handleClipMove('video', id, pos)}
-            onClipResize={() => {}}
+            clips={tracks.video} selectedClipId={selectedClipId}
+            onClipSelect={setSelectedClipId}
+            onClipMove={(id, pos) => handleClipMove('video', id, pos)}
+            onContextMenu={handleContextMenu}
           />
           <TimelineTrack
             label="Audio" icon="ti-microphone" color="#10B981"
-            clips={tracks.audio} onClipMove={(id, pos) => handleClipMove('audio', id, pos)}
-            onClipResize={() => {}}
+            clips={tracks.audio} selectedClipId={selectedClipId}
+            onClipSelect={setSelectedClipId}
+            onClipMove={(id, pos) => handleClipMove('audio', id, pos)}
+            onContextMenu={handleContextMenu}
           />
           <TimelineTrack
             label="Music" icon="ti-headphones" color="#F59E0B"
-            clips={tracks.music} onClipMove={(id, pos) => handleClipMove('music', id, pos)}
-            onClipResize={() => {}}
+            clips={tracks.music} selectedClipId={selectedClipId}
+            onClipSelect={setSelectedClipId}
+            onClipMove={(id, pos) => handleClipMove('music', id, pos)}
+            onContextMenu={handleContextMenu}
           />
           <TimelineTrack
             label="Effects" icon="ti-wand" color="#EF4444"
-            clips={tracks.effects} onClipMove={(id, pos) => handleClipMove('effects', id, pos)}
-            onClipResize={() => {}}
+            clips={tracks.effects} selectedClipId={selectedClipId}
+            onClipSelect={setSelectedClipId}
+            onClipMove={(id, pos) => handleClipMove('effects', id, pos)}
+            onContextMenu={handleContextMenu}
           />
        </div>
 

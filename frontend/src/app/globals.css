@@ -3,25 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --background: #000000;
+  --background: #0E0E10;
   --foreground: #ededed;
   --accent-purple: #7C5CFC;
   --accent-cyan: #00D4FF;
   --surface: #1E1E24;
+  --timeline: #1A1A1F;
   --border: rgba(255, 255, 255, 0.08);
 }
 
 body {
   color: var(--foreground);
-  background: #0E0E10;
+  background: var(--background);
   font-family: 'Inter', sans-serif;
   overflow: hidden;
 }
 
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -37,6 +38,10 @@ body {
   background: #3f3f46;
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Animations */
 @keyframes pulse-glow {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -48,13 +53,28 @@ body {
 }
 
 .shadow-glow-purple {
-  box-shadow: 0 0 15px rgba(124, 92, 252, 0.4);
+  box-shadow: 0 0 20px rgba(124, 92, 252, 0.4);
 }
 
 .shadow-glow-cyan {
-  box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
 }
 
 .transition-standard {
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tabler Icon Fixes */
+.ti {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+@layer utilities {
+  .animate-in {
+    animation-duration: 0.2s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    animation-fill-mode: forwards;
+  }
 }
