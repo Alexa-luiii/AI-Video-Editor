@@ -5,7 +5,13 @@ import React, { useState } from 'react';
 const MediaPanel = () => {
   const [activeTab, setActiveTab] = useState<'video' | 'audio' | 'image'>('video');
 
-  const assets = {
+  interface Asset {
+    name: string;
+    size: string;
+    duration?: string;
+  }
+
+  const assets: Record<'video' | 'audio' | 'image', Asset[]> = {
     video: [
       { name: 'main_clip.mp4', size: '24.5 MB', duration: '0:30' },
       { name: 'b-roll_city.mp4', size: '12.2 MB', duration: '0:15' }
