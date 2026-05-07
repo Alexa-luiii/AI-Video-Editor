@@ -31,14 +31,14 @@ os.makedirs(TTS_DIR, exist_ok=True)
 
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
+@app.get("/")
+async def root():
+    return {"message": "ClipMind AI Video Editor Backend API"}
+
 # Mock Whisper / Gemini integration for MVP
 @app.post("/api/analyze")
 async def analyze_video(filename: str = Body(...), prompt: str = Body(...)):
     # In a real app, this would use genai and whisper
-    # 1. Detect speech -> transcribe
-    # 2. Analyze visuals -> descriptive text
-    # 3. Process prompt -> editing plan
-
     return {
         "has_speech": True,
         "decisions": [
@@ -52,7 +52,6 @@ async def analyze_video(filename: str = Body(...), prompt: str = Body(...)):
 
 @app.post("/api/tts")
 async def generate_tts(text: str = Body(...), voice: str = Body(...)):
-    # voice: 'Alex' (Male) or 'Aria' (Female)
     voice_map = {
         "Alex": "en-US-ChristopherNeural",
         "Aria": "en-US-AriaNeural"
