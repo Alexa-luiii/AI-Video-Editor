@@ -5,8 +5,10 @@ import os
 import uuid
 import shutil
 import json
-from backend.services.ai_service import generate_editing_plan
-from backend.services.video_service import process_video
+import edge_tts
+import asyncio
+import google.generativeai as genai
+from typing import List, Optional
 
 app = FastAPI()
 
@@ -19,65 +21,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Use absolute paths for directories
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+TTS_DIR = os.path.join(OUTPUT_DIR, "tts")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(TTS_DIR, exist_ok=True)
 
-# Mount static files to serve videos
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
-@app.get("/")
-async def root():
-    return {"message": "AI Video Editor Backend API", "upload_dir": UPLOAD_DIR}
+# Mock Whisper / Gemini integration for MVP
+@app.post("/api/analyze")
+async def analyze_video(filename: str = Body(...), prompt: str = Body(...)):
+    # In a real app, this would use genai and whisper
+    # 1. Detect speech -> transcribe
+    # 2. Analyze visuals -> descriptive text
+    # 3. Process prompt -> editing plan
 
-@app.post("/upload")
-async def upload_video(file: UploadFile = File(...)):
-    if not file.content_type.startswith("video/") and not file.filename.endswith(('.mp4', '.mov', '.avi')):
-        raise HTTPException(status_code=400, detail=f"Invalid file type {file.content_type}. Please upload a video.")
+    return {
+        "has_speech": True,
+        "decisions": [
+            { "id": "1", "icon": "ti-subtitles", "label": "Synced bold captions for speech", "status": "pending" },
+            { "id": "2", "icon": "ti-wave-sine", "label": "Dynamic glitch transitions", "status": "pending" },
+            { "id": "3", "icon": "ti-headphones", "label": "Energetic electronic background music", "status": "pending" },
+            { "id": "4", "icon": "ti-wand", "label": "Subtle vignette and film grain", "status": "pending" },
+            { "id": "5", "icon": "ti-crop", "label": "9:16 Format for TikTok/Reels", "status": "pending" },
+        ]
+    }
 
-    file_extension = os.path.splitext(file.filename)[1]
-    file_id = str(uuid.uuid4())
-    filename = f"{file_id}{file_extension}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
+@app.post("/api/tts")
+async def generate_tts(text: str = Body(...), voice: str = Body(...)):
+    # voice: 'Alex' (Male) or 'Aria' (Female)
+    voice_map = {
+        "Alex": "en-US-ChristopherNeural",
+        "Aria": "en-US-AriaNeural"
+    }
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    return {"filename": filename, "file_id": file_id}
-
-@app.post("/process")
-async def process_video_endpoint(
-    filename: str = Body(...),
-    prompt: str = Body(...),
-    feature_controls: dict = Body(...),
-    mode: str = Body(...)
-):
-    input_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(input_path):
-        raise HTTPException(status_code=404, detail=f"Video file not found at {input_path}")
+    selected_voice = voice_map.get(voice, "en-US-ChristopherNeural")
+    filename = f"tts_{uuid.uuid4()}.mp3"
+    filepath = os.path.join(TTS_DIR, filename)
 
     try:
-        # 1. Generate editing plan using AI
-        plan = await generate_editing_plan(prompt, feature_controls, mode)
-
-        # 2. Process video based on plan
-        output_filename = f"edited_{filename}"
-        output_path = os.path.join(OUTPUT_DIR, output_filename)
-
-        processed_path = process_video(input_path, output_path, plan)
-
-        return {
-            "status": "success",
-            "plan": plan,
-            "output_video_url": f"/outputs/{output_filename}",
-            "filename": output_filename
-        }
+        communicate = edge_tts.Communicate(text, selected_voice)
+        await communicate.save(filepath)
+        return {"url": f"/outputs/tts/{filename}"}
     except Exception as e:
-        print(f"Error in process_video_endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
